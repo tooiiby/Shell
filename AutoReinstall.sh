@@ -6,6 +6,12 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+if [ -f "/usr/bin/yum" ] && [ -d "/etc/yum.repos.d" ]; then
+    yum install -y wget curl
+elif [ -f "/usr/bin/apt-get" ] && [ -f "/usr/bin/dpkg" ]; then
+    apt-get install -y wget curl	
+fi
+
 function CopyRight() {
   clear
   echo "########################################################"
@@ -15,7 +21,7 @@ function CopyRight() {
   echo "#  Author: hiCasper                                    #"
   echo "#  Blog: https://blog.hicasper.com/post/135.html       #"
   echo "#  Feedback: https://github.com/hiCasper/Shell/issues  #"
-  echo "#  Last Modified: 2021-12-15                           #"
+  echo "#  Last Modified: 2022-08-07                           #"
   echo "#                                                      #"
   echo "#  Supported by MoeClub                                #"
   echo "#                                                      #"
@@ -89,7 +95,7 @@ function NetMode() {
   CopyRight
 
   if [ "$isAuto" == '0' ]; then
-    read -r -p "Using DHCP to configure network automatically? [Y/n]:" input
+    read -r -p "Use DHCP to configure network automatically? [Y/n]:" input
     case $input in
       [yY][eE][sS]|[yY]) NETSTR='' ;;
       [nN][oO]|[nN]) isAuto='1' ;;
@@ -129,14 +135,14 @@ function NetMode() {
   fi
 }
 
-function BootConf() {
+function RHELImageBootConf() {
   touch /tmp/bootconf.sh
   echo '#!/bin/sh'>/tmp/bootconf.sh
 
   staticIp='1'
   if [ "$isAuto" == '1' ]; then
     echo -e "\n"
-    read -r -p "Using static ip? [Y/n]: " input
+    read -r -p "Writing static ip to system? [Y/n]: " input
     case $input in
       [yY][eE][sS]|[yY]) staticIp='0' ;;
       *) staticIp='1' ;;
@@ -163,36 +169,36 @@ function Start() {
   CopyRight
 
   isCN='0'
-  geoip=$(wget --no-check-certificate -qO- https://api.ip.sb/geoip -T 10 | grep "\"country_code\":\"CN\"")
-  if [[ "$geoip" != "" ]];then
+  geo=$(curl -fsSL -m 10 http://ipinfo.io/json | grep "\"country\": \"CN\"")
+  if [[ "$geo" != "" ]];then
     isCN='1'
   fi
 
   if [ "$isAuto" == '0' ]; then
-    echo "Using DHCP mode."
+    echo "Network Type: DHCP"
   else
     echo "IP: $MAINIP"
     echo "Gateway: $GATEWAYIP"
     echo "Netmask: $NETMASK"
   fi
 
-  [[ "$isCN" == '1' ]] && echo "Using domestic mode."
+  [[ "$isCN" == '1' ]] && echo "Location: Domestic"
 
   if [ -f "/tmp/InstallNET.sh" ]; then
     rm -f /tmp/InstallNET.sh
   fi
-  wget --no-check-certificate -qO /tmp/InstallNET.sh 'https://cdn.jsdelivr.net/gh/hiCasper/Shell@latest/InstallNET.sh' && chmod a+x /tmp/InstallNET.sh
-  #wget --no-check-certificate -qO /tmp/InstallNET.sh 'https://cdn.jsdelivr.net/gh/MoeClub/Note@latest/InstallNET.sh' && chmod a+x /tmp/InstallNET.sh
+  curl -sSL -o /tmp/InstallNET.sh 'https://fastly.jsdelivr.net/gh/hiCasper/Shell@latest/InstallNET.sh' && chmod a+x /tmp/InstallNET.sh
+  #curl -sSL -o /tmp/InstallNET.sh 'https://cdn.jsdelivr.net/gh/MoeClub/Note@latest/InstallNET.sh' && chmod a+x /tmp/InstallNET.sh
 
   CMIRROR=''
   CVMIRROR=''
   DMIRROR=''
   UMIRROR=''
   if [[ "$isCN" == '1' ]];then
-    CMIRROR="--mirror http://mirrors.aliyun.com/centos/"
-    CVMIRROR="--mirror http://mirrors.tuna.tsinghua.edu.cn/centos-vault/"
-    DMIRROR="--mirror http://mirrors.aliyun.com/debian/"
-    UMIRROR="--mirror http://mirrors.aliyun.com/ubuntu/"
+    CMIRROR="--mirror http://mirrors.cloud.tencent.com/centos"
+    CVMIRROR="--mirror http://mirrors.cloud.tencent.com/centos-vault"
+    DMIRROR="--mirror http://mirrors.cloud.tencent.com/debian"
+    UMIRROR="--mirror http://mirrors.cloud.tencent.com/ubuntu"
   fi
 
   sed -i 's/$1$4BJZaD0A$y1QykUnJ6mXprENfwpseH0/$1$7R4IuxQb$J8gcq7u9K0fNSsDNFEfr90/' /tmp/InstallNET.sh
@@ -200,28 +206,30 @@ function Start() {
   echo -e "\nPlease select an OS:"
   echo "  1) CentOS 7.8 (DD Image)"
   echo "  2) CentOS 7.6 (DD Image, ServerSpeeder Avaliable)"
-  echo "  3) CentOS 6"
-  echo "  4) Debian 9"
-  echo "  5) Debian 10"
-  echo "  6) Debian 11"
-  echo "  7) Ubuntu 16.04"
-  echo "  8) Ubuntu 18.04"
-  echo "  9) Ubuntu 20.04"
-  echo "  10) Custom image"
+  echo -e "  3) Rocky Linux 8.6 (\033[31mExperimental, NOT SUPPORT LSI/BusLogic disk controller\033[0m)"
+  echo "  4) Debian 10"
+  echo "  5) Debian 11"
+  echo "  6) Ubuntu 16.04"
+  echo "  7) Ubuntu 18.04"
+  echo "  8) Ubuntu 20.04"
+  echo "  9) Custom image"
+  echo -e "\033[31m  Deprecated:\033[0m"
+  echo "  10) CentOS 6"
+  echo "  11) Debian 9"
+  echo "  12) Ubuntu 14.04"
   echo "  0) Exit"
   echo -ne "\nYour option: "
   read N
   case $N in
-    1) BootConf; echo -e "\nPassword: Pwd@CentOS\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh $NETSTR -dd 'https://api.moetools.net/get/centos-78-image' $DMIRROR ;;
-    2) BootConf; echo -e "\nPassword: Pwd@CentOS\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh $NETSTR -dd 'https://api.moetools.net/get/centos-76-image' $DMIRROR ;;
-    3) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -c 6.10 -v 64 -a $NETSTR $CMIRROR ;;
-    4) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -d 9 -v 64 -a $NETSTR $DMIRROR ;;
-    5) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -d 10 -v 64 -a $NETSTR $DMIRROR ;;
-    6) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -d 11 -v 64 -a $NETSTR $DMIRROR ;;
-    7) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 16.04 -v 64 -a $NETSTR $UMIRROR ;;
-    8) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 18.04 -v 64 -a $NETSTR $UMIRROR ;;
-    9) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 20.04 -v 64 -a $NETSTR $UMIRROR ;;
-    10)
+    1) echo -e "\nPassword: Pwd@CentOS\n"; RHELImageBootConf; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh $NETSTR -dd 'https://api.moetools.net/get/centos-78-image' $DMIRROR ;;
+    2) echo -e "\nPassword: Pwd@CentOS\n"; RHELImageBootConf; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh $NETSTR -dd 'https://api.moetools.net/get/centos-76-image' $DMIRROR ;;
+    3) echo -e "\nPassword: Pwd@Linux\n"; RHELImageBootConf; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh $NETSTR -dd 'https://api.moetools.net/get/rocky-8-image' $DMIRROR ;;
+    4) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -d 10 -v 64 -a $NETSTR $DMIRROR ;;
+    5) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -d 11 -v 64 -a $NETSTR $DMIRROR ;;
+    6) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 16.04 -v 64 -a $NETSTR $UMIRROR ;;
+    7) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 18.04 -v 64 -a $NETSTR $UMIRROR ;;
+    8) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 20.04 -v 64 -a $NETSTR $UMIRROR ;;
+    9)
       echo -e "\n"
       read -r -p "Custom image URL: " imgURL
       echo -e "\n"
@@ -231,6 +239,9 @@ function Start() {
         *) clear; echo "Canceled by user!"; exit 1;;
       esac
       ;;
+    10) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -c 6.10 -v 64 -a $NETSTR $CMIRROR ;;
+    11) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -d 9 -v 64 -a $NETSTR $DMIRROR ;;
+    12) echo -e "\nPassword: Pwd@Linux\n"; read -s -n1 -p "Press any key to continue..." ; bash /tmp/InstallNET.sh -u 14.04 -v 64 -a $NETSTR $UMIRROR ;;
     0) exit 0;;
     *) echo "Wrong input!"; exit 1;;
   esac
